@@ -3,7 +3,8 @@ package url
 import "time"
 
 type Url struct {
-	ID          string
+	ID          int64
+	ShortCode   string
 	OriginalURL string
 	CreatedAt   time.Time
 	Clicks      int64

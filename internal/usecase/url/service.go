@@ -21,52 +21,53 @@ func NewService(repo Repository) *Service {
 }
 
 func (u *Service) CreateShortURL(ctx context.Context, originalURL string) (string, error) {
-	// Генерируем короткий ID
-	shortID := generateShortID()
+	// Валидация
+	if originalURL == "" {
+		return "", ErrInvalidURL
+	}
 
-	// Создаём модель
+	// Сначала создаём запись без short_code (пока не знаем ID)
 	url := &urlDomain.Url{
-		ID:          shortID,
 		OriginalURL: originalURL,
-		CreatedAt:   time.Now(),
+		CreatedAt:   u.now(),
 		Clicks:      0,
 	}
 
-	// Сохраняем в БД
-	if err := u.repo.Create(ctx, url); err != nil {
-		return "", fmt.Errorf("failed to save link: %w", err)
+	// Сохраняем в БД, получаем ID
+	dbID, err := u.repo.Create(ctx, url)
+	if err != nil {
+		return "", fmt.Errorf("failed to create link: %w", err)
 	}
 
-	// Формируем полную короткую ссылку
-	shortURL := fmt.Sprintf("http://localhost:8080/%s", shortID)
+	// Генерируем короткий код из ID
+	shortCode := encodeBase62(dbID)
 
-	return shortURL, nil
+	// Обновляем запись с short_code
+	url.ID = dbID
+	url.ShortCode = shortCode
+	if err := u.repo.UpdateShortCode(ctx, dbID, shortCode); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("http://localhost:8080/%s", shortCode), nil
 }
 
-func (u *Service) GetOriginalURL(ctx context.Context, shortID string) (string, error) {
-	// Получаем из БД
-	link, err := u.repo.GetByID(ctx, shortID)
+func (u *Service) GetOriginalURL(ctx context.Context, shortCode string) (string, error) {
+	link, err := u.repo.GetByShortCode(ctx, shortCode)
 	if err != nil {
-		return "", fmt.Errorf("failed to get link: %w", err)
+		return "", err
 	}
 
-	// Увеличиваем счётчик кликов (асинхронно, чтобы не тормозить редирект)
 	go func() {
-		_ = u.repo.IncrementClicks(context.Background(), shortID)
+		_ = u.repo.IncrementClicks(context.Background(), shortCode)
 	}()
 
 	return link.OriginalURL, nil
 }
 
-// generateShortID генерирует короткий ID (base62)
-func generateShortID() string {
+// encodeBase62 конвертирует число в строку
+func encodeBase62(num int64) string {
 	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-	// Для простоты используем timestamp
-	// В реальном проекте лучше использовать последовательный ID из БД
-	timestamp := time.Now().UnixNano()
-	num := timestamp % 1000000
-
 	if num == 0 {
 		return string(alphabet[0])
 	}
@@ -76,6 +77,5 @@ func generateShortID() string {
 		result = append([]byte{alphabet[num%62]}, result...)
 		num /= 62
 	}
-
 	return string(result)
 }
