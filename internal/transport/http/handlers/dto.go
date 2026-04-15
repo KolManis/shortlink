@@ -1,5 +1,7 @@
 package handlers
 
-type UrlHandler struct {
-	usecase taskusecase.Usecase
+type urlMutationDTO struct {
+}
+
+type urlDTO struct {
 }
