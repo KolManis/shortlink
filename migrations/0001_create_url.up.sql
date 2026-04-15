@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS links (
     id BIGSERIAL PRIMARY KEY,    
-    short_code VARCHAR(10) UNIQUE NOT NULL, 
+    short_code VARCHAR(10) UNIQUE, 
     original_url TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     clicks BIGINT NOT NULL DEFAULT 0
