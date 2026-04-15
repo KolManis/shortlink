@@ -26,6 +26,17 @@ func (u *Service) CreateShortURL(ctx context.Context, originalURL string) (strin
 		return "", ErrInvalidURL
 	}
 
+	tx, err := u.repo.BeginTx(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
 	// Сначала создаём запись без short_code (пока не знаем ID)
 	url := &urlDomain.Url{
 		OriginalURL: originalURL,
@@ -34,7 +45,7 @@ func (u *Service) CreateShortURL(ctx context.Context, originalURL string) (strin
 	}
 
 	// Сохраняем в БД, получаем ID
-	dbID, err := u.repo.Create(ctx, url)
+	dbID, err := u.repo.Create(ctx, tx, url)
 	if err != nil {
 		return "", fmt.Errorf("failed to create link: %w", err)
 	}
@@ -42,11 +53,12 @@ func (u *Service) CreateShortURL(ctx context.Context, originalURL string) (strin
 	// Генерируем короткий код из ID
 	shortCode := encodeBase62(dbID)
 
-	// Обновляем запись с short_code
-	url.ID = dbID
-	url.ShortCode = shortCode
-	if err := u.repo.UpdateShortCode(ctx, dbID, shortCode); err != nil {
-		return "", err
+	if err := u.repo.UpdateShortCode(ctx, tx, dbID, shortCode); err != nil {
+		return "", fmt.Errorf("failed to update short code: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return fmt.Sprintf("http://localhost:8080/%s", shortCode), nil

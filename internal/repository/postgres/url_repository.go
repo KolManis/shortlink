@@ -21,20 +21,23 @@ type urlScanner interface {
 	Scan(dest ...any) error
 }
 
-func (r *Repository) Create(ctx context.Context, url *urlDomain.Url) (int64, error) {
+func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	return r.pool.Begin(ctx)
+}
+
+func (r *Repository) Create(ctx context.Context, tx pgx.Tx, url *urlDomain.Url) (int64, error) {
 	const query = `
-        INSERT INTO links (short_code, original_url, created_at, clicks)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO links (original_url, created_at, clicks)
+        VALUES ($1, $2, $3)
         RETURNING id
     `
 	var id int64
-	err := r.pool.QueryRow(ctx, query,
-		url.ShortCode,
-		url.OriginalURL,
-		url.CreatedAt,
-		url.Clicks,
-	).Scan(&id)
-
+	var err error
+	if tx != nil {
+		err = tx.QueryRow(ctx, query, url.OriginalURL, url.CreatedAt, url.Clicks).Scan(&id)
+	} else {
+		err = r.pool.QueryRow(ctx, query, url.OriginalURL, url.CreatedAt, url.Clicks).Scan(&id)
+	}
 	return id, err
 }
 
@@ -72,13 +75,18 @@ func (r *Repository) IncrementClicks(ctx context.Context, shortCode string) erro
 	return err
 }
 
-func (r *Repository) UpdateShortCode(ctx context.Context, id int64, shortCode string) error {
+func (r *Repository) UpdateShortCode(ctx context.Context, tx pgx.Tx, id int64, shortCode string) error {
 	const query = `
         UPDATE links
         SET short_code = $1
         WHERE id = $2
     `
-	_, err := r.pool.Exec(ctx, query, shortCode, id)
+	var err error
+	if tx != nil {
+		_, err = tx.Exec(ctx, query, shortCode, id)
+	} else {
+		_, err = r.pool.Exec(ctx, query, shortCode, id)
+	}
 	return err
 }
 
