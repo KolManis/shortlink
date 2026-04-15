@@ -31,7 +31,6 @@ func (h *UrlHandler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to read body", http.StatusBadRequest)
 		return
 	}
-
 	// Получаем оригинальный URL
 	originalURL := strings.TrimSpace(string(body))
 	if originalURL == "" {

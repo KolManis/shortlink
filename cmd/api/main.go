@@ -12,6 +12,9 @@ import (
 
 	infrastructurePostgres "github.com/KolManis/shortlink/internal/infrastructure/postgres"
 	postgresRepo "github.com/KolManis/shortlink/internal/repository/postgres"
+	transportHttp "github.com/KolManis/shortlink/internal/transport/http"
+	httpHandlers "github.com/KolManis/shortlink/internal/transport/http/handlers"
+	url "github.com/KolManis/shortlink/internal/usecase/url"
 )
 
 func main() {
@@ -41,10 +44,6 @@ func main() {
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /", h.CreateShortURL)
-	mux.HandleFunc("GET /{id}", h.Redirect)
 
 	go func() {
 		<-ctx.Done()
