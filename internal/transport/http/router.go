@@ -10,6 +10,7 @@ func NewRouter(urlHandler *httpHandlers.UrlHandler) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /", urlHandler.CreateShortURL)
+	mux.HandleFunc("POST /api/shorten", urlHandler.Redirect)
 	mux.HandleFunc("GET /{id}", urlHandler.Redirect)
 
 	return mux
