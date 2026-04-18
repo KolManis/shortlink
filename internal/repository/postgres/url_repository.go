@@ -41,6 +41,30 @@ func (r *Repository) Create(ctx context.Context, tx pgx.Tx, url *urlDomain.Url) 
 	return id, err
 }
 
+func (r *Repository) GetByOriginalURL(ctx context.Context, originalURL string) (*urlDomain.Url, error) {
+	const query = `
+        SELECT id, short_code, original_url, created_at, clicks
+        FROM links
+        WHERE original_url = $1
+    `
+
+	var url urlDomain.Url
+	err := r.pool.QueryRow(ctx, query, originalURL).Scan(
+		&url.ID,
+		&url.ShortCode,
+		&url.OriginalURL,
+		&url.CreatedAt,
+		&url.Clicks,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, urlDomain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &url, nil
+}
+
 func (r *Repository) GetByShortCode(ctx context.Context, shortCode string) (*urlDomain.Url, error) {
 	const query = `
         SELECT id, short_code, original_url, created_at, clicks

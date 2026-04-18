@@ -5,5 +5,3 @@ CREATE TABLE IF NOT EXISTS links (
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     clicks BIGINT NOT NULL DEFAULT 0
 );
-
-CREATE INDEX IF NOT EXISTS idx_short_code ON links(short_code);

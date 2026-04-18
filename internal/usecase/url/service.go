@@ -2,6 +2,7 @@ package url
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -24,6 +25,14 @@ func (u *Service) CreateShortURL(ctx context.Context, originalURL string) (strin
 	// Валидация
 	if originalURL == "" {
 		return "", ErrInvalidURL
+	}
+
+	existing, err := u.repo.GetByOriginalURL(ctx, originalURL)
+	if err == nil && existing != nil {
+		return fmt.Sprintf("http://localhost:8080/%s", existing.ShortCode), nil
+	}
+	if err != nil && !errors.Is(err, urlDomain.ErrNotFound) {
+		return "", fmt.Errorf("failed to check existing: %w", err)
 	}
 
 	tx, err := u.repo.BeginTx(ctx)
