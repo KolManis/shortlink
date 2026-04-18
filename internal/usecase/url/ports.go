@@ -19,4 +19,6 @@ type Repository interface {
 type Usecase interface {
 	CreateShortURL(ctx context.Context, originalURL string) (string, error)
 	GetOriginalURL(ctx context.Context, shortID string) (string, error)
+	// GetByShortCode(ctx context.Context, shortCode string)
+	// IncrementClicks(ctx context.Context, shortCode string)
 }

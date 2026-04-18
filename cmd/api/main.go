@@ -35,9 +35,9 @@ func main() {
 
 	urlRepo := postgresRepo.New(pool)
 	urlUseCase := url.NewService(urlRepo)
-	utlHandler := httpHandlers.NewUrlHandler(urlUseCase)
+	urlHandler := httpHandlers.NewUrlHandler(urlUseCase)
 
-	router := transportHttp.NewRouter(utlHandler)
+	router := transportHttp.NewRouter(urlHandler)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

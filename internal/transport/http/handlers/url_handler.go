@@ -26,7 +26,7 @@ func (h *UrlHandler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("Content-Type") != "text/plain" {
-		http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
+		http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
 		return
 	}
 
