@@ -22,16 +22,22 @@ func NewService(repo Repository) *Service {
 }
 
 func (u *Service) CreateShortURL(ctx context.Context, originalURL string) (string, error) {
+	//fmt.Printf("DEBUG: received URL: %s\n", originalURL)
 	// Валидация
 	if originalURL == "" {
 		return "", ErrInvalidURL
 	}
 
 	existing, err := u.repo.GetByOriginalURL(ctx, originalURL)
+	//fmt.Printf("DEBUG: GetByOriginalURL result: err=%v, existing=%v\n", err, existing)
+
 	if err == nil && existing != nil {
+		//fmt.Printf("DEBUG: found existing, short_code=%s\n", existing.ShortCode)
 		return fmt.Sprintf("http://localhost:8080/%s", existing.ShortCode), nil
 	}
+
 	if err != nil && !errors.Is(err, urlDomain.ErrNotFound) {
+		//fmt.Printf("DEBUG: GetByOriginalURL error: %v\n", err)
 		return "", fmt.Errorf("failed to check existing: %w", err)
 	}
 
