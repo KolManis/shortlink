@@ -15,6 +15,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/0001_create_url.up.sql:/docker-entrypoint-initdb.d/001_create_url.sql:ro
+      - ./migrations/0002_add_unique_index.up.sql:/docker-entrypoint-initdb.d/002_add_unique_index.sql:ro
  
 
   app:
