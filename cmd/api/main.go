@@ -11,6 +11,7 @@ import (
 	"time"
 
 	infrastructurePostgres "github.com/KolManis/shortlink/internal/infrastructure/postgres"
+	"github.com/KolManis/shortlink/internal/repository/cache"
 	postgresRepo "github.com/KolManis/shortlink/internal/repository/postgres"
 	transportHttp "github.com/KolManis/shortlink/internal/transport/http"
 	httpHandlers "github.com/KolManis/shortlink/internal/transport/http/handlers"
@@ -19,7 +20,8 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: slog.LevelDebug,
+		// Level: slog.LevelInfo,
 	}))
 
 	cfg := loadConfig()
@@ -34,7 +36,8 @@ func main() {
 	defer pool.Close()
 
 	urlRepo := postgresRepo.New(pool)
-	urlUseCase := url.NewService(urlRepo)
+	urlCache := cache.NewMemoryCache()
+	urlUseCase := url.NewService(urlRepo, urlCache, logger)
 	urlHandler := httpHandlers.NewUrlHandler(urlUseCase)
 
 	router := transportHttp.NewRouter(urlHandler)

@@ -2,10 +2,18 @@ package url
 
 import (
 	"context"
+	"time"
 
 	urlDomain "github.com/KolManis/shortlink/internal/domain/url"
 	"github.com/jackc/pgx/v5"
 )
+
+type Cache interface {
+	Get(ctx context.Context, key string) (string, error)
+	Set(ctx context.Context, key string, value string, ttl time.Duration) error
+	//Delete(ctx context.Context, key string) error
+	Incr(ctx context.Context, key string) (int64, error)
+}
 
 type Repository interface {
 	BeginTx(ctx context.Context) (pgx.Tx, error)

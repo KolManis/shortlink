@@ -1,4 +1,14 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
   postgres:
     image: postgres:16-alpine
     environment:
@@ -25,10 +35,13 @@ services:
     environment:
       HTTP_ADDR: :8080
       DATABASE_DSN: postgres://postgres:postgres@postgres:5432/urlservice?sslmode=disable
+      REDIS_ADDR: redis:6379
     ports:
       - "8080:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:
