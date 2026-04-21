@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -9,8 +10,9 @@ import (
 )
 
 type MemoryCache struct {
-	data map[string]*cacheItem
-	mu   sync.RWMutex
+	data   map[string]*cacheItem
+	mu     sync.RWMutex
+	logger *slog.Logger
 }
 
 type cacheItem struct {
@@ -18,24 +20,32 @@ type cacheItem struct {
 	expiresAt time.Time
 }
 
-func NewMemoryCache() *MemoryCache {
+func NewMemoryCache(logger *slog.Logger) *MemoryCache {
 	return &MemoryCache{
-		data: make(map[string]*cacheItem),
+		data:   make(map[string]*cacheItem),
+		logger: logger,
 	}
 }
 
 func (c *MemoryCache) Get(ctx context.Context, key string) (string, error) {
+	c.logger.Debug("Memory GET", "key", key)
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	item, ok := c.data[key]
 	if !ok || item.expiresAt.Before(time.Now()) {
+		c.logger.Debug("Memory GET miss or Memory GET expired", "key", key)
 		return "", urlDomain.ErrNotFound
 	}
+
+	c.logger.Debug("Memory GET hit", "key", key, "value", item.value)
 	return item.value, nil
 }
 
 func (c *MemoryCache) Set(ctx context.Context, key string, value string, ttl time.Duration) error {
+	c.logger.Debug("Memory SET", "key", key, "ttl", ttl)
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -47,6 +57,8 @@ func (c *MemoryCache) Set(ctx context.Context, key string, value string, ttl tim
 }
 
 func (c *MemoryCache) Delete(ctx context.Context, key string) error {
+	c.logger.Debug("Memory DELETE", "key", key)
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.data, key)
@@ -54,6 +66,8 @@ func (c *MemoryCache) Delete(ctx context.Context, key string) error {
 }
 
 func (c *MemoryCache) Incr(ctx context.Context, key string) (int64, error) {
+	c.logger.Debug("Memory INCR", "key", key)
+
 	// реализация инкремента
 	c.mu.Lock()
 	defer c.mu.Unlock()

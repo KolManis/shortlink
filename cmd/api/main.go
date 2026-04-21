@@ -35,8 +35,34 @@ func main() {
 	}
 	defer pool.Close()
 
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+
+	redisCache, err := cache.NewRedisCache(redisAddr, logger)
+	if err != nil {
+		logger.Warn("failed to connect to Redis, using memory cache", "error", err)
+		// Fallback на memory cache
+		redisCache = nil
+	}
+	defer func() {
+		if redisCache != nil {
+			redisCache.Close()
+		}
+	}()
+
+	// Выбираем кэш: Redis если работает, иначе Memory
+	var urlCache url.Cache
+	if redisCache != nil {
+		urlCache = redisCache
+		logger.Info("using Redis cache", "addr", redisAddr)
+	} else {
+		urlCache = cache.NewMemoryCache(logger)
+		logger.Info("using memory cache (fallback)")
+	}
+
 	urlRepo := postgresRepo.New(pool)
-	urlCache := cache.NewMemoryCache()
 	urlUseCase := url.NewService(urlRepo, urlCache, logger)
 	urlHandler := httpHandlers.NewUrlHandler(urlUseCase)
 
