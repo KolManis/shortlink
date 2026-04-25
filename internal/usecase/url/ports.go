@@ -5,7 +5,6 @@ import (
 	"time"
 
 	urlDomain "github.com/KolManis/shortlink/internal/domain/url"
-	"github.com/jackc/pgx/v5"
 )
 
 // mockery --name=Repository --dir=internal/usecase/url --output=internal/mocks
@@ -18,9 +17,8 @@ type Cache interface {
 }
 
 type Repository interface {
-	BeginTx(ctx context.Context) (pgx.Tx, error)
-	Create(ctx context.Context, tx pgx.Tx, url *urlDomain.Url) (int64, error)
-	UpdateShortCode(ctx context.Context, tx pgx.Tx, id int64, shortCode string) error
+	Create(ctx context.Context, url *urlDomain.Url) (int64, error)
+	UpdateShortCode(ctx context.Context, id int64, shortCode string) error
 	GetByShortCode(ctx context.Context, id string) (*urlDomain.Url, error)
 	GetByOriginalURL(ctx context.Context, originalURL string) (*urlDomain.Url, error)
 	IncrementClicks(ctx context.Context, id string) error

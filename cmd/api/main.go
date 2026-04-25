@@ -15,6 +15,7 @@ import (
 	postgresRepo "github.com/KolManis/shortlink/internal/repository/postgres"
 	transportHttp "github.com/KolManis/shortlink/internal/transport/http"
 	httpHandlers "github.com/KolManis/shortlink/internal/transport/http/handlers"
+	"github.com/KolManis/shortlink/internal/uow"
 	url "github.com/KolManis/shortlink/internal/usecase/url"
 )
 
@@ -43,7 +44,6 @@ func main() {
 	redisCache, err := cache.NewRedisCache(redisAddr, logger)
 	if err != nil {
 		logger.Warn("failed to connect to Redis, using memory cache", "error", err)
-		// Fallback на memory cache
 		redisCache = nil
 	}
 	defer func() {
@@ -52,7 +52,6 @@ func main() {
 		}
 	}()
 
-	// Выбираем кэш: Redis если работает, иначе Memory
 	var urlCache url.Cache
 	if redisCache != nil {
 		urlCache = redisCache
@@ -63,7 +62,11 @@ func main() {
 	}
 
 	urlRepo := postgresRepo.New(pool)
-	urlUseCase := url.NewService(urlRepo, urlCache, logger)
+
+	uowInstance := uow.New(pool)
+
+	urlUseCase := url.NewService(urlRepo, uowInstance, urlCache, logger)
+
 	urlHandler := httpHandlers.NewUrlHandler(urlUseCase)
 
 	router := transportHttp.NewRouter(urlHandler)

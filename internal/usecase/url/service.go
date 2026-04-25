@@ -8,114 +8,102 @@ import (
 	"time"
 
 	urlDomain "github.com/KolManis/shortlink/internal/domain/url"
+	"github.com/KolManis/shortlink/internal/repository/postgres"
+	"github.com/KolManis/shortlink/internal/uow"
 )
 
 type Service struct {
 	repo   Repository
+	uow    *uow.UnitOfWork
 	cache  Cache
 	logger *slog.Logger
 	now    func() time.Time
 }
 
-func NewService(repo Repository, cache Cache, logger *slog.Logger) *Service {
+func NewService(repo Repository, uow *uow.UnitOfWork, cache Cache, logger *slog.Logger) *Service {
 	return &Service{
 		repo:   repo,
+		uow:    uow,
 		cache:  cache,
 		logger: logger,
 		now:    func() time.Time { return time.Now().UTC() },
 	}
 }
 
-func (u *Service) CreateShortURL(ctx context.Context, originalURL string) (string, error) {
-	u.logger.Debug("creating short URL", "original_url", originalURL)
+func (s *Service) CreateShortURL(ctx context.Context, originalURL string) (string, error) {
+	s.logger.Debug("creating short URL", "original_url", originalURL)
 
 	if originalURL == "" {
-		u.logger.Warn("empty URL provided")
+		s.logger.Warn("empty URL provided")
 		return "", ErrInvalidURL
 	}
 
-	existing, err := u.repo.GetByOriginalURL(ctx, originalURL)
+	existing, err := s.repo.GetByOriginalURL(ctx, originalURL)
 
 	if err == nil && existing != nil {
-		u.logger.Info("URL already exists", "original_url", originalURL, "short_code", existing.ShortCode)
+		s.logger.Info("URL already exists", "original_url", originalURL, "short_code", existing.ShortCode)
 		return fmt.Sprintf("http://localhost:8080/%s", existing.ShortCode), nil
 	}
 
 	if err != nil && !errors.Is(err, urlDomain.ErrNotFound) {
-		u.logger.Error("failed to check existing URL", "error", err)
+		s.logger.Error("failed to check existing URL", "error", err)
 		return "", fmt.Errorf("failed to check existing: %w", err)
 	}
 
-	tx, err := u.repo.BeginTx(ctx)
-	if err != nil {
-		u.logger.Error("failed to begin transaction", "error", err)
-		return "", fmt.Errorf("failed to begin transaction: %w", err)
-	}
+	var shortCode string
 
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback(ctx)
+	err = s.uow.Do(ctx, func(r *postgres.Repository) error {
+		url := &urlDomain.Url{
+			OriginalURL: originalURL,
+			CreatedAt:   s.now(),
+			Clicks:      0,
 		}
-	}()
 
-	// Сначала создаём запись без short_code (пока не знаем ID)
-	url := &urlDomain.Url{
-		OriginalURL: originalURL,
-		CreatedAt:   u.now(),
-		Clicks:      0,
-	}
+		id, err := r.Create(ctx, url)
+		if err != nil {
+			return err
+		}
 
-	// Сохраняем в БД, получаем ID
-	dbID, err := u.repo.Create(ctx, tx, url)
+		shortCode = encodeBase62(id)
+
+		return r.UpdateShortCode(ctx, id, shortCode)
+	})
+
 	if err != nil {
-		u.logger.Error("failed to create link", "error", err)
-		return "", fmt.Errorf("failed to create link: %w", err)
-	}
-
-	// Генерируем короткий код из ID
-	shortCode := encodeBase62(dbID)
-
-	if err := u.repo.UpdateShortCode(ctx, tx, dbID, shortCode); err != nil {
-		u.logger.Error("failed to update short code", "error", err)
-		return "", fmt.Errorf("failed to update short code: %w", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		u.logger.Error("failed to commit transaction", "error", err)
-		return "", fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	u.logger.Info("short URL created", "short_code", shortCode, "original_url", originalURL)
-
-	return fmt.Sprintf("http://localhost:8080/%s", shortCode), nil
-}
-
-func (u *Service) GetOriginalURL(ctx context.Context, shortCode string) (string, error) {
-	u.logger.Debug("getting original URL", "short_code", shortCode)
-
-	cached, err := u.cache.Get(ctx, "url:"+shortCode)
-	if err == nil {
-		u.logger.Debug("cache hit", "short_code", shortCode, "url", cached)
-		return cached, nil
-	}
-
-	u.logger.Debug("cache miss", "short_code", shortCode)
-
-	link, err := u.repo.GetByShortCode(ctx, shortCode)
-	if err != nil {
-		u.logger.Warn("short code not found or failed to get from DB", "short_code", shortCode)
+		s.logger.Error("failed to create short URL", "error", err)
 		return "", err
 	}
 
-	if err := u.cache.Set(ctx, "url:"+shortCode, link.OriginalURL, time.Hour); err != nil {
-		u.logger.Warn("failed to set cache", "short_code", shortCode, "error", err)
+	s.logger.Info("short URL created", "short_code", shortCode)
+	return fmt.Sprintf("http://localhost:8080/%s", shortCode), nil
+}
+
+func (s *Service) GetOriginalURL(ctx context.Context, shortCode string) (string, error) {
+	s.logger.Debug("getting original URL", "short_code", shortCode)
+
+	cached, err := s.cache.Get(ctx, "url:"+shortCode)
+	if err == nil {
+		s.logger.Debug("cache hit", "short_code", shortCode, "url", cached)
+		return cached, nil
+	}
+
+	s.logger.Debug("cache miss", "short_code", shortCode)
+
+	link, err := s.repo.GetByShortCode(ctx, shortCode)
+	if err != nil {
+		s.logger.Warn("short code not found", "short_code", shortCode, "error", err)
+		return "", err
+	}
+
+	if err := s.cache.Set(ctx, "url:"+shortCode, link.OriginalURL, time.Hour); err != nil {
+		s.logger.Warn("failed to set cache", "short_code", shortCode, "error", err)
 	}
 
 	// go func() {
 	// 	_ = u.repo.IncrementClicks(context.Background(), shortCode)
 	// }()
 
-	u.logger.Info("redirect", "short_code", shortCode, "original_url", link.OriginalURL)
+	// s.logger.Info("redirect", "short_code", shortCode, "original_url", link.OriginalURL)
 
 	return link.OriginalURL, nil
 }

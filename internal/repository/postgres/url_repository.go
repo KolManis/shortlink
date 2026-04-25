@@ -97,7 +97,7 @@ func (r *Repository) IncrementClicks(ctx context.Context, shortCode string) erro
 	return err
 }
 
-func (r *Repository) UpdateShortCode(ctx context.Context, tx pgx.Tx, id int64, shortCode string) error {
+func (r *Repository) UpdateShortCode(ctx context.Context, id int64, shortCode string) error {
 	const query = `
         UPDATE links
         SET short_code = $1
