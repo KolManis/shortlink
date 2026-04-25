@@ -1,0 +1,9 @@
+with-expecter: true
+mockname: "Mock{{.InterfaceName}}"
+filename: "mock_{{.InterfaceName | snakecase}}.go"
+outpkg: "mocks"
+packages:
+  github.com/KolManis/shortlink/internal/usecase/url:
+    interfaces:
+      Repository:
+      Cache:
